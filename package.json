@@ -1,0 +1,36 @@
+{
+  "name": "s3-sftp-bridge",
+  "version": "0.0.0",
+  "description": "A small Lambda app that syncs files between Amazon S3 and external FTP servers",
+  "main": "main.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha --recursive test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gilt/s3-sftp-bridge"
+  },
+  "keywords": [
+    "s3",
+    "sftp"
+  ],
+  "author": "Ryan Martin",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/gilt/s3-sftp-bridge/issues"
+  },
+  "dependencies": {
+    "aws-sdk": "2.x",
+    "bluebird": "3.x",
+    "node-s3-encryption-client": "^0.0.2",
+    "ssh2": "^0.5.0"
+  },
+  "devDependencies": {
+    "aws-lambda-mock-context": "^1.1.0",
+    "mocha": "^2.4.5",
+    "sinon": "^1.17.3"
+  }
+}
