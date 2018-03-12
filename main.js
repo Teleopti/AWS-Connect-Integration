@@ -10,21 +10,7 @@ var AWS = require('aws-sdk'),
 var objIsCSV  = true;
 
 exports.handle = function(event, context) {
-	console.log("Reading options from event:\n", util.inspect(event, {depth: 5}));
-    var srcBucket = event.Records[0].s3.bucket.name;
-    var srcKey    = event.Records[0].s3.object.key;
-    
-    // determine whether a csv a CSV
-    if (srcKey.match(/\.csv$/) === null) {
-        var msg = "Key " + srcKey + " is not a csv file, attempting CTR conversion";
-        objIsCSV = false;
-        console.log(msg);
-    }
-	if (event.Records) {
-    return exports.newS3Object(event, context);
-  } else {
-    console.log('No upload or Item is not a valid report or CTR.');
-  }
+	return exports.pollSqs(context);
 };
 
 exports.pollSqs = function(context) {
@@ -69,6 +55,9 @@ function internalNewS3Object(event, context) {
       return Promise.map(
         event.Records,
         function(record) {
+        	console.log("Reading options from event:\n", util.inspect(event, {depth: 5}));
+            var srcBucket = event.Records[0].s3.bucket.name;
+            var srcKey    = event.Records[0].s3.object.key;
           var fullS3Path = record.s3.bucket.name + '/' + decodeURIComponent(record.s3.object.key);
           console.info("Object path: " + fullS3Path + " | config s3 Loc: " + config["s3Location"]);
           var newObjectS3Path = exports.getFilePathArray(fullS3Path);
@@ -88,6 +77,13 @@ function internalNewS3Object(event, context) {
                   //return configS3Path.join('/') == newObjectS3Path.slice(0, configS3Path.length).join('/');
                 };
                 var bodydata = objectData.Body;
+                
+                if (srcKey.match(/\.csv$/) === null) {
+                    var msg = "Key " + srcKey + " is not a csv file, attempting CTR conversion";
+                    objIsCSV = false;
+                    console.log(msg);
+                }
+                
                 if (!objIsCSV){
                 	bodydata = json2csv.jsonconvert(objectData.Body.toString("utf8"));
                 	};
@@ -177,59 +173,6 @@ exports.getSftpConfig = function(config) {
     } else return sftpconfig;
   });
 };
-
-exports.scheduledEventResourceToStreamNames = function(resource) {
-  return resource.substr(resource.toLowerCase().indexOf("rule/") + 5).split(".");
-};
-
-exports.syncSftpDir = function(sftp, sftpDir, s3Location, fileRetentionDays, topDir, isInDoneDir) {
-  topDir = topDir || sftpDir;
-  fileRetentionDays = fileRetentionDays || 14; // Default to retaining files for 14 days.
-  return sftp.readdirAsync(sftpDir)
-  .then(function(dirList) {
-    return Promise.mapSeries(
-      dirList,
-      function(fileInfo) {
-        return Promise.try(function() {
-          if (fileInfo.longname[0] == 'd') {
-            return exports.syncSftpDir(sftp, sftpDir + '/' + fileInfo.filename, s3Location, fileRetentionDays, topDir, isInDoneDir || fileInfo.filename == sftpHelper.DoneDir);
-          } else if (isInDoneDir) {
-            // Purge files from the .done folder based on the stream config
-            var fileDate = new Date(fileInfo.attrs.mtime * 1000),
-                purgeDate = new Date();
-            purgeDate.setDate(purgeDate.getDate() - fileRetentionDays);
-            if (fileDate < purgeDate) {
-              return sftp.unlinkAsync(sftpDir + '/' + fileInfo.filename);
-            }
-          } else {
-            return sftpHelper.processFile(sftp, sftpDir, fileInfo.filename, function(body) {
-              var s3Path = exports.getFilePathArray(s3Location),
-                  sftpPath = exports.getFilePathArray(sftpDir),
-                  topDirPath = exports.getFilePathArray(topDir);
-              var s3Bucket = s3Path.shift();
-              for (var i = 0; i < topDirPath.length; i++) sftpPath.shift(); // Remove the origin path from the destination directory
-              var destDir = s3Path.concat(sftpPath).join('/');
-              if (destDir.length > 0) destDir += '/';
-              console.info("Writing " + s3Bucket + "/" + destDir + fileInfo.filename + "...");
-              return s3.putObjectAsync({
-                Bucket: s3Bucket,
-                Key: destDir + fileInfo.filename,
-                Body: body,
-                Metadata: {
-                  "synched": "true"
-                }
-              })
-              .then(function(data) {
-                console.info("...done");
-                return data;
-              });
-            });
-          }
-        });
-      }
-    );
-  })
-}
 
 function flatten(arr) {
   return arr.reduce(function(a, b) {
