@@ -37,7 +37,7 @@
 					{
 						"Sid": "allow-s3-to-send-message-to-sqs",
 						"Effect": "Allow",
-						"Action": [ "sqs:SendMessage" ],
+						"Action": [ "sqs:SendMessage", "sqs:ReceiveMessage" ],
 						"Principal": "*",
 						"Condition": {
                             "ArnLike": {
